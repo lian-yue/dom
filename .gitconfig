@@ -1,0 +1,9 @@
+[user]
+	name = git
+	email = admin@lianyue.org
+[push]
+	default = simple
+[color]
+	ui = true
+[core]
+	excludesfile = /Users/lianyue/.gitignore
