@@ -8,7 +8,7 @@
 /*	Author: Moon
 /*
 /*	Created: UTC 2015-05-23 11:20:19
-/*	Updated: UTC 2015-06-28 09:38:09
+/*	Updated: UTC 2015-07-07 04:50:42
 /*
 /* ************************************************************************** */
 namespace Loli\DOM;
@@ -721,20 +721,20 @@ class Node implements ArrayAccess, IteratorAggregate, JsonSerializable, Countabl
 
 
 	public function getElementById($id) {
-		return $this->querySelector('#' . preg_replace('/[^0-9a-z_\-]/i', '', $id));
+		return $this->querySelector('#' . $id);
 	}
 
 
 	public function getElementsByClassName($class) {
-		return $this->querySelectorAll('.' . preg_replace('/[^0-9a-z_\-]/i', '', $class));
+		return $this->querySelectorAll('.' . $class);
 	}
 
 	public function getElementsByName($name) {
-		return $this->querySelectorAll('[name=\'' . $name. '\']');
+		return $this->querySelectorAll('[name=\'' . $name . '\']');
 	}
 
 	public function getElementsByTagName($tagName) {
-		return $this->querySelectorAll(preg_replace('/[^0-9a-z_\-]/i', '', $tagName));
+		return $this->querySelectorAll($tagName);
 	}
 
 	public function querySelector($selectors) {
