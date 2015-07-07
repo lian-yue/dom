@@ -8,7 +8,7 @@
 /*	Author: Moon
 /*
 /*	Created: UTC 2015-06-19 11:57:03
-/*	Updated: UTC 2015-06-22 15:26:14
+/*	Updated: UTC 2015-07-07 03:41:53
 /*
 /* ************************************************************************** */
 namespace Loli\DOM\CSS;
@@ -116,7 +116,7 @@ class Supports extends Base implements IteratorAggregate, Countable{
 						$supports->type = self::TYPE_VALUE;
 						$array = array_map('trim', explode(':', $this->buffer, 2));
 						$privatePrefix = self::privatePrefix($array[0]);
-						if (isset(self::$propertys[$array[0]])) {
+						if ($array[0]) {
 							$supports->value = [$privatePrefix, $array[0], empty($array[1]) ? '' : preg_replace('/[^0-9a-z !|\/%#.,+-]/i', '', $array[1])];
 						}
 					}

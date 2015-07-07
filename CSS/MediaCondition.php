@@ -8,7 +8,7 @@
 /*	Author: Moon
 /*
 /*	Created: UTC 2015-06-10 15:05:52
-/*	Updated: UTC 2015-06-22 11:55:04
+/*	Updated: UTC 2015-07-07 03:52:40
 /*
 /* ************************************************************************** */
 namespace Loli\DOM\CSS;
@@ -352,7 +352,6 @@ class MediaCondition extends Base implements IteratorAggregate, Countable{
 	private function _value($value) {
 		return $value && preg_match('/^[0-9a-z \%\/.\-\+]+$/', $value);
 	}
-
 
 
 	public function getIterator() {

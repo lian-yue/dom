@@ -8,12 +8,12 @@
 /*	Author: Moon
 /*
 /*	Created: UTC 2015-06-01 10:31:52
-/*	Updated: UTC 2015-06-22 14:32:38
+/*	Updated: UTC 2015-06-29 11:52:20
 /*
 /* ************************************************************************** */
-namespace Loli\DOM;
-use CSS\Media;
-class FilterAttributes {
+namespace Loli\DOM\Filter;
+use Loli\DOM\CSS\Media, Loli\DOM\Node;
+class Attributes {
 	// url 允许的协议
 	protected $schemes = ['http', 'https', 'ftp', 'gopher', 'news', 'telnet', 'rtsp', 'mms', 'callto', 'bctp', 'synacast', 'thunder', 'flashget', 'qqid', 'magnet', 'ed2k'];
 
@@ -142,8 +142,12 @@ class FilterAttributes {
 	protected $tagName;
 
 
-	public function __construct($style = NULL) {
+	public function __construct(Styles $style = NULL) {
 		$this->style = $style;
+	}
+
+	public function __invoke() {
+		return call_user_func_array([$this, 'filters'], func_get_args());
 	}
 
 	public function filters(Node $nodes) {

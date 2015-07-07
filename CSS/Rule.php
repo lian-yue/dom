@@ -8,7 +8,7 @@
 /*	Author: Moon
 /*
 /*	Created: UTC 2015-06-18 07:58:07
-/*	Updated: UTC 2015-06-22 15:24:06
+/*	Updated: UTC 2015-07-07 03:47:22
 /*
 /* ************************************************************************** */
 namespace Loli\DOM\CSS;
@@ -224,6 +224,9 @@ class Rule extends Base implements ArrayAccess, IteratorAggregate, Countable{
 				if (is_array($value)) {
 					$string = '';
 					foreach ($value as $v) {
+						if ($v === NULL || $v === false) {
+							continue;
+						}
 						$string .= $string ? (strpos($string, ':') === false ? ':' : ' ') . $v : $v;
 					}
 					$value = $string;
@@ -358,7 +361,7 @@ class Rule extends Base implements ArrayAccess, IteratorAggregate, Countable{
 			case self::PROPERTY_RULE:
 				// 属性
 				if ($this->value) {
-					$this->value = rtrim(preg_replace('/\s+/', ' ', str_replace(['"', '\'', ';', '/*', '}', '{', ''], '', $this->value)), " \t\n\r\0\x0B\\");
+					$this->value = rtrim(preg_replace('/\s+/', ' ', str_replace(['"', '\'', ';', '/*', '*/', '}', '{'], '', $this->value)), " \t\n\r\0\x0B\\");
 				}
 				$result = $this->privatePrefix . $this->name .':' .($this->format ? ' ' : ''). $this->value . ($this->important ? ' !important': '') . ';';
 				break;
@@ -778,18 +781,12 @@ class Rule extends Base implements ArrayAccess, IteratorAggregate, Countable{
 			if (!($value = trim($value)) || count($value = explode(':', $value, 2)) !== 2) {
 				continue;
 			}
+
+			$value[0] = trim($value[0]);
+
 			// 指定属性
-			if ($inArray) {
-				if (!in_array($value[0] = strtolower(trim($value[0])), $inArray, true)) {
-					continue;
-				}
-			} elseif (!self::isVar($value[0])) {
-				// 丢弃未知属性
-				$name = $value[0];
-				self::privatePrefix($name, true);
-				if (!isset(self::$propertys[$name])) {
-					continue;
-				}
+			if ($inArray && !in_array($value[0] = strtolower(trim($value[0])), $inArray, true)) {
+				continue;
 			}
 
 			$rule->insertRule(new Rule($value, self::PROPERTY_RULE));

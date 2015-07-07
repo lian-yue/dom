@@ -8,7 +8,7 @@
 /*	Author: Moon
 /*
 /*	Created: UTC 2015-06-05 03:10:27
-/*	Updated: UTC 2015-06-22 14:28:30
+/*	Updated: UTC 2015-07-07 04:21:14
 /*
 /* ************************************************************************** */
 namespace Loli\DOM\CSS;
@@ -32,8 +32,6 @@ class Selectors extends Base implements IteratorAggregate, Countable{
 	}
 
 
-
-
 	/**
 	 * __toString 对象字符串输出
 	 * @return string
@@ -49,10 +47,13 @@ class Selectors extends Base implements IteratorAggregate, Countable{
 							case '':
 							case '.':
 							case '#':
-								$selector .= $value[0] . $value[1];
+								$selector .= $value[0] . addcslashes($value[1], self::SEARCH);
 								break;
 							case '[]':
-								$selector .= '['. implode('|', $value[1]) . ($value[2] ? $value[2] . '"'. str_replace('"', '&quot;', $value[3]) .'"' : '') .']';
+								foreach($value[1] as &$v) {
+									$v = addcslashes($v, self::SEARCH);
+								}
+								$selector .= '['. implode('|', $value[1]) . ($value[2] ? $value[2] . '"'. addcslashes(str_replace('"', '&quot;', $value[3]), '"') .'"' : '') .']';
 								break;
 							case ':':
 								switch ($value[1]) {
@@ -107,7 +108,7 @@ class Selectors extends Base implements IteratorAggregate, Countable{
 
 			// 标签名
 			if ($this->buffer) {
-				$single[] = ['', strtolower($this->buffer)];
+				$single[] = ['', strtolower(stripcslashes($this->buffer))];
 				$this->buffer = '';
 			}
 
@@ -179,7 +180,7 @@ class Selectors extends Base implements IteratorAggregate, Countable{
 					// class or id 名
 					$key = $char;
 					$char = $this->search(self::SEARCH);
-					$single[] = [$key, $this->buffer];
+					$single[] = [$key, stripcslashes($this->buffer)];
 					$this->buffer = '';
 					break;
 				case '[':
@@ -201,7 +202,7 @@ class Selectors extends Base implements IteratorAggregate, Countable{
 							case '|=':
 								// 到运算符了
 								if ($this->buffer || !$value[1]) {
-									$value[1][] = $this->buffer;
+									$value[1][] = stripcslashes($this->buffer);
 								}
 								$value[2] = $char;
 								$value[3] = '';
@@ -210,7 +211,7 @@ class Selectors extends Base implements IteratorAggregate, Countable{
 							case '|':
 								// 分段
 								if ($this->buffer) {
-									$value[1][] = $this->buffer;
+									$value[1][] = stripcslashes($this->buffer);
 								}
 								$this->buffer = '';
 								break;
@@ -227,16 +228,17 @@ class Selectors extends Base implements IteratorAggregate, Countable{
 					// 如果有运算符这个就是 值
 					if ($value[2]) {
 						if (strlen($this->buffer) > 1 && (($quote = substr($this->buffer, 0, 1)) === '"' || $quote === '\'')) {
-							$value[3] = substr($this->buffer, 1, -1);
+							$value[3] = stripcslashes(substr($this->buffer, 1, -1));
 						} else {
-							$value[3] = $this->buffer;
+							$value[3] = stripcslashes($this->buffer);
 						}
 					} else {
-						$value[1][] = $this->buffer;
+						$value[1][] = stripcslashes($this->buffer);
 					}
-					$single[] = $value;
+					if ($value[1] = array_filter($value[1])) {
+						$single[] = $value;
+					}
 					$this->buffer = '';
-
 					// 跳到下一个位置
 					$char = $this->search(self::SEARCH);
 					break;
@@ -396,7 +398,7 @@ class Selectors extends Base implements IteratorAggregate, Countable{
 			return false;
 		}
 		foreach ($single as $key => $value) {
-			switch ($value[0]) {
+			/*switch ($value[0]) {
 				case '':
 					$continue = preg_match('/^(\*|[a-z_-][a-z0-9_-]*)$/i', $value[1]);
 					break;
@@ -421,7 +423,7 @@ class Selectors extends Base implements IteratorAggregate, Countable{
 			if (!$continue) {
 				unset($single[$key]);
 				continue;
-			}
+			}*/
 
 			// 标签 和 id 不能多个 多个就删除
 			if (in_array($value[0], ['', '#'], true)) {

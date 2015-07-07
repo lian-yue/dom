@@ -8,12 +8,11 @@
 /*	Author: Moon
 /*
 /*	Created: UTC 2015-06-01 14:00:25
-/*	Updated: UTC 2015-06-22 15:25:45
+/*	Updated: UTC 2015-06-29 11:52:25
 /*
 /* ************************************************************************** */
-namespace Loli\DOM;
-use CSS\Rule;
-class FilterTags{
+namespace Loli\DOM\Filter;
+class Tags{
 	// 所有允许的标签
 	protected $tags = [
 		'a' => true, 'abbr' => true, 'acronym' => true, 'address' => true, 'applet' => true, 'area' => true, 'article' => true, 'aside' => true, 'audio' => true,
@@ -232,7 +231,7 @@ class FilterTags{
 	// style 方法
 	protected $style;
 
-	public function __construct($style = NULL) {
+	public function __construct(Styles $style = NULL) {
 		$this->style = $style;
 	}
 
