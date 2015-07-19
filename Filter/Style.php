@@ -8,13 +8,12 @@
 /*	Author: Moon
 /*
 /*	Created: UTC 2015-06-29 11:29:12
-/*	Updated: UTC 2015-07-07 03:07:41
+/*	Updated: UTC 2015-07-19 14:46:56
 /*
 /* ************************************************************************** */
 namespace Loli\DOM\Filter;
 class Style{
 
-	// expression ie8 以前
 	// http://www.w3.org/Style/CSS/all-properties.en.html
 	protected static $propertys = [
 
@@ -419,12 +418,18 @@ class Style{
 		return call_user_func_array([$this, 'filter'], func_get_args());
 	}
 
-
 	public function filter($name, $value) {
+		// 变量的
+		if (substr($name, 0, 2) === '--') {
+			return substr($name, 0, 10) === '--content-';
+		}
+		if (!isset(self::$propertys[$name])) {
+			return false;
+		}
 		// 禁止 position 的浏览器绝对定位
-		if (strcasecmp($name, 'position')) {
+		if ($name === 'position') {
 			return in_array(strtolower($value), ['static', 'absolute', 'relative', 'initial', 'inherit'], true);
 		}
-		return preg_match(pattern, $value);
+		return true;
 	}
 }

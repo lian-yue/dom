@@ -8,7 +8,7 @@
 /*	Author: Moon
 /*
 /*	Created: UTC 2015-06-18 07:58:07
-/*	Updated: UTC 2015-07-19 14:08:49
+/*	Updated: UTC 2015-07-19 14:39:03
 /*
 /* ************************************************************************** */
 namespace Loli\DOM\CSS;
@@ -233,7 +233,7 @@ class Rule extends Base implements ArrayAccess, IteratorAggregate, Countable{
 				}
 				$value = explode(':', $value, 2);
 				$this->privatePrefix = self::privatePrefix($value[0], true);
-				$this->name = $value[0];
+				$this->name = strtolower(trim($value[0]));
 
 				// important 优先级
 				if (isset($value[1])) {

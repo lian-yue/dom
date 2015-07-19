@@ -8,7 +8,7 @@
 /*	Author: Moon
 /*
 /*	Created: UTC 2015-06-01 14:00:25
-/*	Updated: UTC 2015-06-29 11:52:25
+/*	Updated: UTC 2015-07-19 15:05:06
 /*
 /* ************************************************************************** */
 namespace Loli\DOM\Filter;
@@ -231,8 +231,12 @@ class Tags{
 	// style 方法
 	protected $style;
 
-	public function __construct(Styles $style = NULL) {
+	public function __construct(Style $style = NULL) {
 		$this->style = $style;
+	}
+
+	public function __invoke() {
+		call_user_func_array([$this, 'filters'], func_get_args());
 	}
 
 	/**
@@ -264,6 +268,8 @@ class Tags{
 
 		// 样式表的值过滤
 		$this->styleValue($node);
+
+		gc_collect_cycles();
 	}
 
 
@@ -510,7 +516,11 @@ class Tags{
 				$this->styleValue($childNode);
 				continue;
 			}
-			$rule = new Rule($childNode->textContent);
+			if (!$this->style) {
+				$childNode->parentNode->removeChild($childNode);
+				continue;
+			}
+			$this->styleRule(new Rule($childNode->textContent));
 		}
 	}
 
@@ -530,20 +540,23 @@ class Tags{
 				case Rule::KEYFRAMES_RULE:
 					// 样式表过滤 保留 content- 开头的动画名
 					if (substr($rule->name, 0, 8) !== 'content-') {
-						$value->parentRule->deleteRule($value);
+						$rule->parentRule->deleteRule($rule);
 					}
 					break;
 				case Rule::PROPERTY_RULE:
+					if (!$this->style->filrer($rule->name, $rule->value)) {
+						$rule->parentRule->deleteRule($rule);
+					}
 					// 过滤属性名
-					$rule->value = preg_replace('/[^0-9a-z !|\/%#.,+-]/i', '', $rule->value);
 					break;
 				case Rule::MEDIA_RULE:
 				case Rule::KEYFRAME_RULE:
 				case Rule::SUPPORTS_RULE:
 				case Rule::COMMENT_RULE:
+					// 保留注释什么的
 					break;
 				default:
-					$value->parentRule->deleteRule($value);
+					$rule->parentRule->deleteRule($rule);
 			}
 		}
 	}
