@@ -8,11 +8,12 @@
 /*	Author: Moon
 /*
 /*	Created: UTC 2015-06-19 10:02:30
-/*	Updated: UTC 2015-07-07 03:09:37
+/*	Updated: UTC 2015-07-19 13:59:58
 /*
 /* ************************************************************************** */
 namespace Loli\DOM\CSS;
 abstract class Base{
+
 	protected function process($value) {
 		$this->string = trim($value);
 		$this->length = strlen($this->string);
@@ -22,10 +23,117 @@ abstract class Base{
 		unset($this->string, $this->length, $this->offset, $this->buffer);
 	}
 
+	/**
+	 * ascii 判断 ascii 代码 范围
+	 * @param  [type] $value [description]
+	 * @return [type]        [description]
+	 */
+	protected static function ascii($value) {
+		return preg_match("/^[\r\n\t -~]*$/", $value);
+	}
 
+	protected static function name($name, $var = NULL) {
+		$name = trim($name);
+		if (self::expression($name)) {
+			return false;
+		}
+		if ($var !== NULL && (((bool)$var) !== (substr($name, 0, 2) === '--'))) {
+			return false;
+		}
+		if (!preg_match('/^[_-]*[a-z][0-9a-z_-]*$/i', $name)) {
+			return false;
+		}
+		return $name;
+	}
 
+	protected static function expression($value) {
+		return stripos($value, 'expression') !== false || stripos($value, 'script') !== false || stripos($value, 'eval') !== false;
+	}
 
-	abstract protected function prepare($obj);
+	protected static function value($value) {
+		$value = trim($value, " \t\n\r\0\x0B;");
+		if (strpos($value, '&#') !== false) {
+			return false;
+		}
+		if (!$value) {
+			return $value;
+		}
+
+		$value = preg_replace('/\s+/', ' ', $value);
+		$offset = 0;
+		$length = strlen($value);
+		$brackets = 0;
+		$url = false;
+		while (($offset2 = $offset + ($length2 = strcspn($value, '\\"\'()', $offset))) < $length) {
+			$string = substr($value, $offset, $length2);
+			if (self::expression($string) || !self::ascii($string)) {
+				return false;
+			}
+			switch ($value{$offset2}) {
+				case '(':
+					if ($brackets > 5 || $url) {
+						return false;
+					}
+					if (strcasecmp(substr($string, -3, 3), 'url') === 0) {
+						$url = $offset2 + 1;
+					}
+					++$brackets;
+					break;
+				case ')':
+					if ($brackets <= 0) {
+						return false;
+					}
+
+					if ($url) {
+						if (!$url = substr($value, $url, $offset2 - $url)) {
+							return false;
+						}
+						if (in_array($url{0}, ['"', '\''], true)) {
+							$url = substr($url, 1, -1);
+						}
+						if (!self::url($url)) {
+							return false;
+						}
+						$url = false;
+					}
+					--$brackets;
+					break;
+				case '"':
+				case '\'':
+					$search = $value{$offset2};
+					++$offset2;
+					$offset3 = $offset2;
+
+					// 引号 跳到下一个 字符串去
+					while ((($offset4 = $offset3 + strcspn($value, '\\' . $search, $offset3)) < $length) && $value{$offset4} === '\\') {
+						++$offset4;
+						if (!isset($value{$offset4})) {
+							return false;
+						}
+						++$offset4;
+					}
+
+					// 只有一个引号的 返回 false
+					if (!isset($value{$offset4})) {
+						return false;
+					}
+					$offset2 = $offset4;
+					break;
+				default:
+					return false;
+			}
+
+			// 设置新的开始
+			$offset = $offset2 + 1;
+		}
+
+		// 没闭合的
+		if ($brackets) {
+			return false;
+		}
+
+		return $value;
+	}
 
 
 
@@ -57,30 +165,26 @@ abstract class Base{
 		return $matches[1];
 	}
 
-	protected static function isVar($name) {
-		return $name && preg_match('/^\-\-[a-z][0-9a-z_-]*$/i', $name);
-	}
-
-
-
-
 	/**
 	 * url url地址匹配
 	 * @param  string     $url url地址
 	 * @return string|boolean
 	 */
 	protected static function url($url) {
-		if (!$url) {
+		if (!$url || !self::ascii($url) || preg_match('/(["\'()]|\s)/', $url)) {
 			return false;
 		}
-		if (!$url = preg_replace('/(["\'()#*;<>\\\\]|\s)/', '', $url)) {
+
+		// image 数据
+		if (preg_match('/^data\:image\/[a-z]+;\s*base64/i', $url)) {
+			return true;
+		}
+
+		if (!$parse = parse_url($url)) {
 			return false;
 		}
-		$scheme = parse_url($url, PHP_URL_SCHEME);
-		if ($scheme && strcasecmp($scheme, 'http') !== 0 && strcasecmp($scheme, 'https') !== 0) {
-			return false;
-		}
-		if (strpos($url, ':') !== false && !$scheme) {
+
+		if (isset($parse['scheme']) && strcasecmp($parse['scheme'], 'http') !== 0 && strcasecmp($parse['scheme'], 'https') !== 0) {
 			return false;
 		}
 		return $url;
@@ -96,8 +200,15 @@ abstract class Base{
 	 * @return string|boolean
 	 */
 	protected function search($search, $rule = false) {
-		$search .= '/\\\'"';
-		while (($char = $this->_search($search)) !== false) {
+		$search .= '/\\\'"()';
+
+		$brackets = 0;
+		while (($offset = $this->offset + ($length = strcspn($this->string, $search, $this->offset))) < $this->length) {
+			$char = $this->string{$offset};
+
+			$this->buffer .= substr($this->string, $this->offset, $length);
+			$this->offset = $offset + 1;
+
 			switch ($char) {
 				case '/':
 					if (isset($this->string{$this->offset}) && $this->string{$this->offset} === '*') {
@@ -126,34 +237,42 @@ abstract class Base{
 				case '"':
 				case '\'':
 					// 引号 跳到下一个 字符串去
-					$quote = $char;
-					$this->buffer .= $quote;
-					while (($char = $this->_search('\\' . $quote)) === '\\') {
-						$this->buffer .= '\\';
-						if (isset($this->string{$this->offset})) {
-							$this->buffer .= $this->string{$this->offset};
+					$this->buffer .= $char;
+					while ((($offset = $this->offset + ($length = strcspn($this->string, $char . '\\', $this->offset))) < $this->length) && $this->string{$offset} === '\\') {
+						$this->buffer .= substr($this->string, $this->offset, $length);
+						++$offset;
+						if (isset($this->string{$offset})) {
+							$this->buffer .= $this->string{$offset};
 						}
-						++$this->offset;
+						$this->offset = $offset + 1;
 					}
-					if ($char !== false) {
+					$this->buffer .= substr($this->string, $this->offset, $length);
+					if ($offset < $this->length) {
 						$this->buffer .= $char;
+						$this->offset = $offset + 1;
+					} else {
+						$this->offset = $offset;
+					}
+					//die;
+					break;
+				case '(':
+					$this->buffer .= '(';
+					++$brackets;
+					break;
+				case ')':
+					$this->buffer .= ')';
+					if ($brackets > 0) {
+						--$brackets;
 					}
 					break;
 				default:
-					return $char;
+					if ($brackets <= 0) {
+						return $char;
+					}
 			}
 		}
-		return false;
-	}
 
-	private function _search($search) {
-		$offset = $this->offset + strcspn($this->string, $search, $this->offset);
-		if ($offset < $this->length) {
-			$this->buffer .= substr($this->string, $this->offset, $offset - $this->offset);
-			$this->offset = $offset + 1;
-			return $this->string{$offset};
-		}
-		$this->buffer .= substr($this->string, $this->offset);
+		$this->buffer .= substr($this->string, $this->offset, $length);
 		$this->offset = $this->length;
 		return false;
 	}

@@ -8,7 +8,7 @@
 /*	Author: Moon
 /*
 /*	Created: UTC 2015-06-05 03:10:27
-/*	Updated: UTC 2015-07-07 04:21:14
+/*	Updated: UTC 2015-07-08 12:13:37
 /*
 /* ************************************************************************** */
 namespace Loli\DOM\CSS;
@@ -18,7 +18,9 @@ class Selectors extends Base implements IteratorAggregate, Countable{
 	// 嵌套层次限制
 	const NESTING = 5;
 
+	// 搜索 和转义的
 	const SEARCH = "~>+:#.,[]{}@  \t\n\r\0\x0B()";
+
 
 	/**
 	 * $selectors
@@ -30,7 +32,6 @@ class Selectors extends Base implements IteratorAggregate, Countable{
 	public function __construct($selectors = false) {
 		$selectors && $this->process($selectors);
 	}
-
 
 	/**
 	 * __toString 对象字符串输出
@@ -47,13 +48,14 @@ class Selectors extends Base implements IteratorAggregate, Countable{
 							case '':
 							case '.':
 							case '#':
-								$selector .= $value[0] . addcslashes($value[1], self::SEARCH);
+								$selector .= $value[0] . $value[1];
 								break;
 							case '[]':
-								foreach($value[1] as &$v) {
-									$v = addcslashes($v, self::SEARCH);
+								foreach($value[1] as &$attributeName) {
+									$attributeName = $attributeName;
 								}
-								$selector .= '['. implode('|', $value[1]) . ($value[2] ? $value[2] . '"'. addcslashes(str_replace('"', '&quot;', $value[3]), '"') .'"' : '') .']';
+								unset($attributeName);
+								$selector .= '['. implode('|', $value[1]) . ($value[2] ? $value[2] . '"'. addcslashes(str_replace('"', '&quot;', $value[3]), '"\\') .'"' : '') .']';
 								break;
 							case ':':
 								switch ($value[1]) {
@@ -88,10 +90,6 @@ class Selectors extends Base implements IteratorAggregate, Countable{
 	}
 
 
-
-
-
-
 	protected function prepare($selectors) {
 		static $stack = [];
 		// 限制嵌套层次
@@ -108,7 +106,7 @@ class Selectors extends Base implements IteratorAggregate, Countable{
 
 			// 标签名
 			if ($this->buffer) {
-				$single[] = ['', strtolower(stripcslashes($this->buffer))];
+				$single[] = ['', strtolower($this->buffer)];
 				$this->buffer = '';
 			}
 
@@ -391,14 +389,12 @@ class Selectors extends Base implements IteratorAggregate, Countable{
 	}
 
 
-
-
 	protected function single(array &$single) {
 		if (!$single) {
 			return false;
 		}
 		foreach ($single as $key => $value) {
-			/*switch ($value[0]) {
+			switch ($value[0]) {
 				case '':
 					$continue = preg_match('/^(\*|[a-z_-][a-z0-9_-]*)$/i', $value[1]);
 					break;
@@ -418,13 +414,11 @@ class Selectors extends Base implements IteratorAggregate, Countable{
 					$continue = true;
 					break;
 			}
-
 			// 不合法的属性
 			if (!$continue) {
 				unset($single[$key]);
 				continue;
-			}*/
-
+			}
 			// 标签 和 id 不能多个 多个就删除
 			if (in_array($value[0], ['', '#'], true)) {
 				if (isset($keys[$value[0]])) {

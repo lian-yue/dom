@@ -8,7 +8,7 @@
 /*	Author: Moon
 /*
 /*	Created: UTC 2015-06-19 09:46:35
-/*	Updated: UTC 2015-06-22 08:54:00
+/*	Updated: UTC 2015-07-15 10:37:54
 /*
 /* ************************************************************************** */
 namespace Loli\DOM\CSS;
@@ -24,14 +24,21 @@ class Document extends Base implements IteratorAggregate, Countable{
 
 
 	public function __toString() {
-		if (!$this->conditions) {
-			return 'url-prefix("")';
-		}
 		$conditions = [];
 		foreach ($this->conditions as $condition) {
-			 $conditions[] = $condition[0] . '("'. (strcasecmp($condition[0], 'regexp') === 0 ? str_replace('"\\', '', $condition[1]) : $this->_regexp(str_replace('"', '\\"', $condition[1]))) .'")';
+			if (!self::ascii($condition[1])) {
+				continue;
+			}
+			if (strcasecmp($condition[1], 'regexp') === 0) {
+				if (!$this->_regexp($string)) {
+					continue
+				}
+			} else {
+				$condition[1] = str_replace(['"', '\\'], '', $condition[1]);
+			}
+			$conditions[] = $condition[0] . '("'. $condition[1] .'")';
 		}
-		return implode(', ', $conditions);
+		return $conditions ? implode(', ', $conditions) : 'url-prefix("")';
 	}
 
 
@@ -71,6 +78,7 @@ class Document extends Base implements IteratorAggregate, Countable{
 		$conditions[] = $this->buffer;
 		foreach ($conditions as $condition) {
 			if (preg_match('/^\s*(url|url\-prefix|domain|regexp)\s*\(("|\')?(.*)(?(2)\2|)\)\s*$/i', $condition, $matches)) {
+				$matches[3] = strtr($matches[3], "\r\n", ' ');
 				$this->conditions[] = [strtolower($matches[1]), empty($matches[2]) ? $matches[3] : (str_replace('\\'. $matches[2], $matches[2], $matches[3]))];
 			}
 		}

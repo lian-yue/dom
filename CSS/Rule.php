@@ -8,7 +8,7 @@
 /*	Author: Moon
 /*
 /*	Created: UTC 2015-06-18 07:58:07
-/*	Updated: UTC 2015-07-07 03:47:22
+/*	Updated: UTC 2015-07-19 14:08:49
 /*
 /* ************************************************************************** */
 namespace Loli\DOM\CSS;
@@ -235,6 +235,7 @@ class Rule extends Base implements ArrayAccess, IteratorAggregate, Countable{
 				$this->privatePrefix = self::privatePrefix($value[0], true);
 				$this->name = $value[0];
 
+				// important 优先级
 				if (isset($value[1])) {
 					$value[1] = trim($value[1]);
 					if (strcasecmp(substr($value[1], -10, 10), '!important') === 0) {
@@ -356,14 +357,11 @@ class Rule extends Base implements ArrayAccess, IteratorAggregate, Countable{
 		switch ($this->type) {
 			case self::COMMENT_RULE:
 				// 注释
-				$result = '/*'. str_replace('*/', '', $this->comment) . '*/';
+				$result = '/*'. str_replace('*/', '&ast;/', $this->comment) . '*/';
 				break;
 			case self::PROPERTY_RULE:
 				// 属性
-				if ($this->value) {
-					$this->value = rtrim(preg_replace('/\s+/', ' ', str_replace(['"', '\'', ';', '/*', '*/', '}', '{'], '', $this->value)), " \t\n\r\0\x0B\\");
-				}
-				$result = $this->privatePrefix . $this->name .':' .($this->format ? ' ' : ''). $this->value . ($this->important ? ' !important': '') . ';';
+				$result = $this->value && ($this->value = self::value($this->value)) && ($this->name = self::name($this->name)) ? $this->privatePrefix . $this->name .':' .($this->format ? ' ' : ''). $this->value . ($this->important ? ' !important': '') . ';' : '';
 				break;
 			case self::STYLE_RULE:
 				// style 样式表
@@ -379,7 +377,7 @@ class Rule extends Base implements ArrayAccess, IteratorAggregate, Countable{
 				break;
 			case self::CHARSET_RULE;
 				// 编码
-				$result = '@charset "'. str_replace('"\\', '', $this->encoding) .'";';
+				$result = '@charset "'. (self::ascii($this->encoding) ? str_replace(['"', '\\'], '', $this->encoding) : 'UTF-8') .'";';
 				break;
 			case self::IMPORT_RULE;
 				// 引入文件
@@ -387,7 +385,7 @@ class Rule extends Base implements ArrayAccess, IteratorAggregate, Countable{
 				break;
 			case self::NAMESPACE_RULE:
 				// 命名空间
-				$result = '@'. $this->privatePrefix .'namespace '. ($this->prefix ? $this->name($this->prefix) . ' ' : '') .'url("'. self::url($this->namespaceURI) .'");';
+				$result = '@'. $this->privatePrefix .'namespace '. ($this->prefix ? self::name($this->prefix, false) . ' ' : '') .'url("'. self::url($this->namespaceURI) .'");';
 				break;
 			case self::FONT_FACE_RULE;
 				// 字体文件
@@ -415,7 +413,7 @@ class Rule extends Base implements ArrayAccess, IteratorAggregate, Countable{
 				break;
 			case self::COUNTER_STYLE_RULE:
 				// 计数器 li 什么的
-				$result = '@'. $this->privatePrefix .'counter-style '. $this->name($this->name);
+				$result = '@'. $this->privatePrefix .'counter-style '. self::name($this->name, false);
 				$result .= ' {';
 				foreach($this->cssRules as $rule) {
 					if ($this->format) {
@@ -427,7 +425,7 @@ class Rule extends Base implements ArrayAccess, IteratorAggregate, Countable{
 				break;
 			case self::KEYFRAMES_RULE:
 				// 动画
-				$result = '@'. $this->privatePrefix .'keyframes '. $this->name($this->name);
+				$result = '@'. $this->privatePrefix .'keyframes '. self::name($this->name, false);
 				$result .= ' {';
 				foreach($this->cssRules as $rule) {
 					if ($this->format) {
@@ -529,8 +527,8 @@ class Rule extends Base implements ArrayAccess, IteratorAggregate, Countable{
 				$result .= $this->format . '}';
 				break;
 			case self::CUSTOM_MEDIA_RULE:
-				// 属性支持
-				$result = self::isVar($this->name) ? '@custom-media ' . $this->name .' '. $this->media : '';
+				// 自定义 media
+				$result = ($name = self::name($this->name, true)) ? '@custom-media ' . $name .' '. $this->media : '';
 				break;
 			default:
 				$result = '';
@@ -538,8 +536,6 @@ class Rule extends Base implements ArrayAccess, IteratorAggregate, Countable{
 					$rule->format = $this->format;
 					$result .= $rule;
 				}
-				//$result = trim($result);
-				break;
 		}
 		$result = $result && $this->format && $this->parentRule && ($this->format !== "\n" || reset($this->parentRule->cssRules) !== $this) ? $this->format . $result : $result;
 		$this->format = '';
@@ -589,7 +585,7 @@ class Rule extends Base implements ArrayAccess, IteratorAggregate, Countable{
 					$this->buffer = '';
 
 					// 读下一个
-					$char = $this->search(" \t\n\r\0\x0B{}:(;");
+					$char = $this->search(" \t\n\r\0\x0B{}:;");
 					switch ($char) {
 						case ';':
 						case '}':
@@ -773,11 +769,25 @@ class Rule extends Base implements ArrayAccess, IteratorAggregate, Countable{
 		// 清空缓冲区
 		$this->buffer = '';
 
-		// 读元素长度
-		$this->search('}', $rule);
+		$propertys = [];
+		while (($char = $this->search('};', $rule)) !== false) {
+			switch ($char) {
+				case '}':
+					break 2;
+				case ';':
+					$propertys[] = $this->buffer;
+					$this->buffer = '';
+					break;
+			}
+		}
+
+		if ($this->buffer) {
+			$propertys[] = $this->buffer;
+			$this->buffer = '';
+		}
 
 		// 发布
-		foreach (explode(';', $this->buffer) as $value) {
+		foreach ($propertys as $value) {
 			if (!($value = trim($value)) || count($value = explode(':', $value, 2)) !== 2) {
 				continue;
 			}
@@ -807,20 +817,6 @@ class Rule extends Base implements ArrayAccess, IteratorAggregate, Countable{
 		$this->format = $format ? "\n" : '';
 		return $this;
 	}
-
-
-	/**
-	 * name 名字匹配
-	 * @param  string $name [description]
-	 * @return string|boolean
-	 */
-	 protected function name($name) {
-	 	if (!$name || !preg_match('/^[a-z][a-z0-9_-]*$/i', $name = trim($name))) {
-	 		return false;
-	 	}
-	 	return $name;
-	 }
-
 
 
 
@@ -900,6 +896,7 @@ class Rule extends Base implements ArrayAccess, IteratorAggregate, Countable{
 	public function offsetExists($name) {
 		return isset($this->cssRules[$name]);
 	}
+
 	public function offsetUnset($name) {
 		unset($this->cssRules[$name]);
 	}

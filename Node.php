@@ -8,7 +8,7 @@
 /*	Author: Moon
 /*
 /*	Created: UTC 2015-05-23 11:20:19
-/*	Updated: UTC 2015-07-07 04:50:42
+/*	Updated: UTC 2015-07-13 02:37:19
 /*
 /* ************************************************************************** */
 namespace Loli\DOM;
@@ -371,7 +371,7 @@ class Node implements ArrayAccess, IteratorAggregate, JsonSerializable, Countabl
 			// 字符串节点
 			case self::TEXT_NODE:
 				if ($this->parentNode && (strcasecmp($this->parentNode->tagName, 'style') === 0 || strcasecmp($this->parentNode->tagName, 'script') === 0)) {
-					$return = preg_replace('/^\s*(\/\/)?\<!\[CDATA\[|(\/\/)?\]\]\>\s*$/i', '', str_ireplace('</' . $this->tagName, '', $this->nodeValue));
+					$return = preg_replace('/^\s*(\/\/)?\<!\[CDATA\[|(\/\/)?\]\]\>\s*$/i', '', str_ireplace('</' . $this->tagName, '&lt;/' . $this->tagName, $this->nodeValue));
 				} else {
 					$return = self::escape($this->nodeValue);
 				}
@@ -382,13 +382,11 @@ class Node implements ArrayAccess, IteratorAggregate, JsonSerializable, Countabl
 				$return = '<![CDATA['. str_replace([']]>', '<![CDATA['], [']]&gt;', '&lt;![CDATA['], $this->nodeValue) .']]>';
 				break;
 
-
 			// 注释节点
 			case self::COMMENT_NODE:
 					// 过滤 防止 可能 的  if ie 属性出来
 					$return = '<!--' . preg_replace('/(endif\s*)\]/i', '$1&#93;', preg_replace('/\[(\s*if|else)/i', '&#91;$1', preg_replace('/\](\s*>)/i', '&#93;$1',$this->nodeValue))) . '-->';
 				break;
-
 			// 根文档
 			case self::DOCUMENT_NODE:
 				$string = '';
