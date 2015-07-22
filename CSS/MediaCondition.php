@@ -8,7 +8,7 @@
 /*	Author: Moon
 /*
 /*	Created: UTC 2015-06-10 15:05:52
-/*	Updated: UTC 2015-07-07 03:52:40
+/*	Updated: UTC 2015-07-21 15:34:53
 /*
 /* ************************************************************************** */
 namespace Loli\DOM\CSS;
@@ -110,7 +110,7 @@ class MediaCondition extends Base implements IteratorAggregate, Countable{
 						$this->insert($media);
 					}
 				} elseif ($value) {
-					$this->process($value);
+					$this->process(preg_replace('/([()])/', ' $1 ', $value));
 				}
 		}
 	}
@@ -185,140 +185,148 @@ class MediaCondition extends Base implements IteratorAggregate, Countable{
 		if ($nesting >= self::NESTING) {
 			return;
 		}
+		$conditions = [];
+		while (!in_array($char = $this->search(" \t\n\r\0\x0B,;{}"), [',', ';', '{', '}', false], true)) {
+			$conditions[] = $this->buffer;
+			$this->buffer = '';
+		}
+		$conditions[] = $this->buffer;
 
-		while (($char = $this->search('{};(),')) !== false || (empty($while) && !$media->parent && $media->type === self::TYPE_ROOT)) {
-			$while = true;
-			if ($char === false || $char === '(') {
-				// 开始
-				if ($media->type === self::TYPE_GROUP || $media->type === self::TYPE_ROOT) {
-					$media->value = ['and', false, false];
+		$conditions = array_filter(array_map('trim', $conditions));
 
-					$buffer = trim($this->buffer);
-					if ($char && in_array($buffer, ['and', 'not', 'or'], true)) {
-						// 运算符
-						$media->value[0] = $buffer;
-					} elseif ($buffer && $media->type === self::TYPE_ROOT && !$media->childs && !$media->value[2]) {
-						$buffer = preg_split('/\s+/', $buffer, 4, PREG_SPLIT_NO_EMPTY);
-						$key = 0;
+		$media->value = [false, false, false];
 
-						// 设备运算符 only not
-						if (in_array($buffer[0], ['only', 'not'], true)) {
-							$media->value[1] = $buffer[0];
-							++$key;
-						}
 
-						// 设备类型
-						if (isset($buffer[$key]) && in_array($buffer[$key], self::$types, true)) {
-							$media->value[2] = $buffer[$key];
-							++$key;
-						} else {
-							$media->value[1] = false;
-						}
-					}
+		if ($media->type === self::TYPE_ROOT) {
+			$key = 0;
 
-					// 清空缓冲区
-					$this->buffer = '';
+			// 设备运算符 only not
+			if (isset($conditions[$key]) && in_array(strtolower($conditions[$key]), ['only', 'not'], true)) {
+				$media->value[1] = strtolower($conditions[$key]);
+				unset($conditions[$key]);
+				++$key;
+			}
 
+			// 设备类型
+			if (isset($conditions[$key]) && in_array(strtolower($conditions[$key]), self::$types, true)) {
+				$media->value[2] = strtolower($conditions[$key]);
+				unset($conditions[$key]);
+				++$key;
+			} else {
+				$media->value[1] = false;
+			}
+		}
+
+
+
+		// 遍历
+		foreach ($conditions as $condition) {
+			if ($condition{0} === '(') {
+				$condition = substr($condition, 1, -1);
+				$offset = strcspn($condition, ':<>(');
+				$length = strlen($condition);
+				$media->insert($media2 = new MediaCondition);
+
+				if ($offset < $length && $condition{$offset} === '(') {
 					// 创建对象
-					$media->insert($media2 = new MediaCondition);
+					$media2->type = self::TYPE_GROUP;
 
-					// 递归
 					++$nesting;
-					$this->prepare($media2);
+					$this->process($condition, $media2);
 					--$nesting;
-
-					// 无效的对象移除
-					if ($media2->parent && !$media2->childs && !$media2->value) {
-						$media2->parent->delete($media2);
-					}
-				}
-			} elseif ($char === ')') {
-				// 结束
-				if ($media->parent && !$media->childs && ($buffer = trim($this->buffer))) {
-					if (($offset = strcspn($buffer, ':<>')) >= strlen($buffer)) {
+				} else {
+					if ($offset >= $length) {
 						// boolean 属性
-						$media->type = self::TYPE_FEATURE_BOOLEAN;
-						if ($name = $this->_name($buffer)) {
-							$media->value = [$name];
+						$media2->type = self::TYPE_FEATURE_BOOLEAN;
+						if ($name = $this->_name($condition)) {
+							$media2->value = [$name];
 						}
-					} elseif ($buffer{$offset} === ':') {
+					} elseif ($condition{$offset} === ':') {
 						// plain 属性
-						$media->type = self::TYPE_FEATURE_PLAIN;
-						$name = $offset ? substr($buffer, 0, $offset) : '';
-						$value = trim(substr($buffer, $offset + 1));
-						if (($name = $this->name($name)) && $this->_value($value)) {
-							$media->value = [$name, $value];
+						$media2->type = self::TYPE_FEATURE_PLAIN;
+						$name = $offset ? substr($condition, 0, $offset) : '';
+						$value = trim(substr($condition, $offset + 1));
+						if (($name = $this->_name($name)) && ($value = $this->_value($value))) {
+							$media2->value = [$name, $value];
 						}
 					} else {
 						// 范围属性
-						$media->type = self::TYPE_FEATURE_RANGE;
+						$media2->type = self::TYPE_FEATURE_RANGE;
 
 						// 第一个属性
-						$media->value = [$offset ? substr($buffer, 0, $offset) : ''];
+						$media2->value = [$offset ? substr($condition, 0, $offset) : ''];
 
 						// 第一个判断
-						$media->value[1] = $buffer{$offset};
+						$media2->value[1] = $condition{$offset};
 						++$offset;
-						if (isset($buffer{$offset}) && $buffer{$offset} === '=') {
-							$media->value[1] .= '=';
+						if (isset($condition{$offset}) && $condition{$offset} === '=') {
+							$media2->value[1] .= '=';
 							++$offset;
 						}
 
 						// 截断缓冲区
-						$buffer = substr($buffer, $offset);
+						$condition = substr($condition, $offset);
+						$offset = strcspn($condition, '<>');
 
 						// 第二个属性
-						$media->value[2] = $offset ? substr($buffer, 0, $offset) : false;
+						$media2->value[2] = $offset ? substr($condition, 0, $offset) : false;
 
 						// 第二个判断
-						if (($offset = strcspn($buffer, '<>', $offset)) < strlen($buffer)) {
-							$media->value[3] = $buffer{$offset};
+						if ($offset < strlen($condition)) {
+							$media2->value[3] = $condition{$offset};
 							++$offset;
-							if (isset($buffer{$offset}) && $buffer{$offset} === '=') {
-								$media->value[3] .= '=';
+							if (isset($condition{$offset}) && $condition{$offset} === '=') {
+								$media2->value[3] .= '=';
 								++$offset;
 							}
 							// 第三个属性
-							$media->value[4] = substr($buffer, $offset);;
+							$media2->value[4] = substr($condition, $offset);
 						}
 
 
 
 						// 过滤头尾空格
-						$media->value = array_map('trim', $media->value);
+						$media2->value = array_map('trim', $media2->value);
 
 
-						if (isset($media->value[4])) {
+						if (isset($media2->value[4])) {
 							// 2个值的
-							if (($name = $this->_name($media->value[2])) && $this->_value($media->value[0]) && $this->_value($media->value[4])) {
-								$media->value[2] = $name;
+							if (($name = $this->_name($media2->value[2])) && $this->_value($media2->value[0]) && $this->_value($media2->value[4])) {
+								$media2->value[2] = $name;
 							} else {
-								$media->value = [];
+								$media2->value = [];
 							}
 						} else {
 							// 1个值的
-							if ($name = $this->_name($media->value[0])) {
-								if ($this->_value($media->value[2])) {
-									$media->value[0] = $name;
+							if ($name = $this->_name($media2->value[0])) {
+								if ($this->_value($media2->value[2])) {
+									$media2->value[0] = $name;
 								} else {
-									$media->value = [];
+									$media2->value = [];
 								}
 							} else {
-								if (($name = $this->_name($media->value[2])) && $this->_value($media->value[0])) {
-									$media->value[2] = $name;
+								if (($name = $this->_name($media2->value[2])) && $this->_value($media2->value[0])) {
+									$media2->value[2] = $name;
 								} else {
-									$media->value = [];
+									$media2->value = [];
 								}
 							}
 						}
 					}
 				}
-				$this->buffer = '';
-				break;
-			} else {
-				break;
+				// 无效的对象移除
+				if ($media2->parent && !$media2->childs && !$media2->value) {
+					$media2->parent->delete($media2);
+				}
+			} elseif (!$media->value[0] && in_array(strtolower($condition), ['and', 'not', 'or'], true)) {
+				$media->value[0] = strtolower($condition);
 			}
 		}
+		if (!$media->value[0]) {
+			$media->value[0] = 'and';
+		}
+
+
 		// 如果是 not 运算符只允许一个 属性
 		if ($media->childs && ($media->type === self::TYPE_ROOT || $media->type === self::TYPE_GROUP) && $media->value[0] === 'not') {
 			$media->childs = [reset($media->childs)];
@@ -327,12 +335,12 @@ class MediaCondition extends Base implements IteratorAggregate, Countable{
 
 
 	private function _name($name) {
-		if (!$name) {
+		if (!$name = trim($name)) {
 			return false;
 		}
 
 		// 变量
-		if (self::isVar($name)) {
+		if (self::name($name, true)) {
 			return $name;
 		}
 		$name = strtolower($name);
@@ -352,7 +360,6 @@ class MediaCondition extends Base implements IteratorAggregate, Countable{
 	private function _value($value) {
 		return $value && preg_match('/^[0-9a-z \%\/.\-\+]+$/', $value);
 	}
-
 
 	public function getIterator() {
 		return new ArrayIterator($this->childs);

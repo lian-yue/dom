@@ -8,7 +8,7 @@
 /*	Author: Moon
 /*
 /*	Created: UTC 2015-06-01 10:31:52
-/*	Updated: UTC 2015-07-19 15:04:31
+/*	Updated: UTC 2015-07-21 15:13:21
 /*
 /* ************************************************************************** */
 namespace Loli\DOM\Filter;
@@ -21,8 +21,37 @@ class Attributes {
 	protected $targets = ['_blank'];
 
 	// 允许的类型
-	protected $types = ['text', 'hidden', 'file', 'password', 'email', 'url', 'search', 'number', 'color', 'range', 'tel', 'datetime-local', 'image', 'datetime', 'date', 'month', 'week', 'time', 'submit', 'reset', 'button', 'textarea', 'select', 'radio', 'checkbox', 'application/x-shockwave-flash', 'text/plain'];
-
+	protected $types = [
+		'text' => true,
+		'hidden' => true,
+		'file' => true,
+		'password' => true,
+		'email' => true,
+		'url' => true,
+		'search' => true,
+		'number' => true,
+		'color' => true,
+		'range' => true,
+		'tel' => true,
+		'datetime-local' => true,
+		'image' => true,
+		'datetime' => true,
+		'date' => true,
+		'month' => true,
+		'week' => true,
+		'time' => true,
+		'submit' => true,
+		'reset' => true,
+		'button' => true,
+		'textarea' => true,
+		'select' => true,
+		'radio' => true,
+		'checkbox' => true,
+		'text/plain' => true,
+		'text/css' => ['link', 'style'],
+		'text/javascript' => ['script'],
+		'application/x-shockwave-flash' => ['embed'],
+	];
 
 	// 允许匹配的 id  数组
 	protected $id = [];
@@ -36,9 +65,6 @@ class Attributes {
 
 	// name 允许的值
 	protected $name = [];
-
-	// 允许匹配的 class name id 前缀
-	protected $prefix;
 
 	// classid 允许的值 ie 控件的
 	protected $classID = ['clsid:d27cdb6e-ae6d-11cf-96b8-444553540000'];
@@ -141,9 +167,16 @@ class Attributes {
 	// 当前标签名
 	protected $tagName;
 
+	protected $style;
+
+	// 允许匹配的 class name id 前缀
+	protected $prefix = 'content-';
 
 	public function __construct(Style $style = NULL) {
-		$this->style = $style;
+		if ($style) {
+			$this->style = $style;
+			$this->prefix =& $style->prefix;
+		}
 	}
 
 	public function __invoke() {
@@ -156,12 +189,10 @@ class Attributes {
 				$this->tagName = $node->tagName;
 				if (strcasecmp($this->tagName, 'param') === 0) {
 					// 变量
-					$name = $node->attributes['name'];
-					$value = $node->attributes['value'];
-					$value = $this->filter($name, $value);
+					$value = $this->filter($name = $node->attributes['name'], $node->attributes['value']);
 
 					// 删除所有属性
-					foreach ($node->attributes[$name] as $attributeName => $attributeValue) {
+					foreach ($node->attributes as $attributeName => $attributeValue) {
 						unset($node->attributes[$attributeName]);
 					}
 
@@ -249,7 +280,7 @@ class Attributes {
 			return NULL;
 		}
 		$results = [];
-		foreach (explode(' ', trim($value)) as $class) {
+		foreach (preg_split('/\s+/', $value, -1, PREG_SPLIT_NO_EMPTY) as $class) {
 			if (!($class = trim($class)) || (!in_array($class, $this->class, true) && $this->prefix && substr($class, 0, strlen($this->prefix)) !== $this->prefix) || !preg_match('/^[0-9a-z_-]+$/i', $class)) {
 				continue;
 			}
@@ -301,7 +332,8 @@ class Attributes {
 
 	protected function type($value) {
 		// 其他允许的标签
-		if (in_array($value = strtolower($value), $this->types, true)) {
+		$value = strtolower($value);
+		if (!empty($this->types[$value]) && ($this->types[$value] === true || in_array($this->tagName, $this->types[$value], true))) {
 			return $value;
 		}
 
@@ -508,9 +540,11 @@ class Attributes {
 		if ($this->style) {
 			$rule = new Rule('div{'. $value .'}');
 			$result = '';
-			foreach ($rule as $value) {
-				if ($value->type === Rule::PROPERTY_RULE && $this->style->filrer($value->name, $value->value)) {
-					$result .= $value;
+			if ($rule->cssRules && reset($rule->cssRules)->type === Rule::STYLE_RULE) {
+				foreach (reset($rule->cssRules)->cssRules as $value) {
+					if ($value->type === Rule::PROPERTY_RULE && $this->style->filrer($value->name, $value->value)) {
+						$result .= $value;
+					}
 				}
 			}
 			if ($result) {

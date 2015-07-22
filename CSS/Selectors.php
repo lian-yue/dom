@@ -8,7 +8,7 @@
 /*	Author: Moon
 /*
 /*	Created: UTC 2015-06-05 03:10:27
-/*	Updated: UTC 2015-07-08 12:13:37
+/*	Updated: UTC 2015-07-21 03:49:46
 /*
 /* ************************************************************************** */
 namespace Loli\DOM\CSS;
@@ -19,7 +19,7 @@ class Selectors extends Base implements IteratorAggregate, Countable{
 	const NESTING = 5;
 
 	// 搜索 和转义的
-	const SEARCH = "~>+:#.,[]{}@  \t\n\r\0\x0B()";
+	const SEARCH = "~>+:#.,[]{}@  \t\n\r\0\x0B";
 
 
 	/**
@@ -115,7 +115,6 @@ class Selectors extends Base implements IteratorAggregate, Countable{
 				case '}':
 				case '@':
 				case ']':
-				case '(':
 					// 特殊字符串跳出
 					break 2;
 				case ')':
@@ -241,14 +240,18 @@ class Selectors extends Base implements IteratorAggregate, Countable{
 					$char = $this->search(self::SEARCH);
 					break;
 				case ':':
-					if (isset($this->string{$this->offset}) && $this->string{$this->offset} === '>') {
+					if (isset($this->string{$this->offset}) && $this->string{$this->offset} === ':') {
 						++$this->offset;
 					}
 					$char = $this->search(self::SEARCH);
-					$buffer = $this->buffer;
-					self::privatePrefix($buffer);
+
+					$buffer = explode('(', $this->buffer, 2);
+					if (!empty($buffer[1]) && substr($buffer[1], -1, 1) === ')') {
+						$buffer[1] = substr($buffer[1], 0, -1);
+					}
+					self::privatePrefix($buffer[0]);
 					$this->buffer = '';
-					switch ($buffer) {
+					switch ($buffer[0]) {
 						case 'first-child':
 						case 'last-child':
 						case 'only-child':
@@ -274,80 +277,53 @@ class Selectors extends Base implements IteratorAggregate, Countable{
 						case 'visited':
 						case 'valid':
 						case 'invalid':
-							if ($char === '(') {
-								$this->search(')');
-								$this->buffer = '';
-								$char = $this->search(self::SEARCH);
-							}
-							$single[] = [':', $buffer, false];
+							$single[] = [':', $buffer[0], false];
 							break;
 						case 'after':
 						case 'before':
 						case 'first-letter':
 						case 'first-line':
 						case 'selection':
-							if ($char === '(') {
-								$this->search(')');
-								$this->buffer = '';
-								$char = $this->search(self::SEARCH);
-							}
-							$single[] = [':', ':'. $buffer, false];
+							$single[] = [':', ':'. $buffer[0], false];
 							break;
 						case 'nth-child':
 						case 'nth-last-child':
 						case 'nth-of-type':
 						case 'nth-last-of-type':
-							if ($char === '(') {
-								$this->search(')');
-								if (preg_match('/^\s*(even|odd|[0-9+\-]+(?:n[0-9+\-]+)?)\s*$/i', $this->buffer, $matches)) {
-									$args = strtolower($matches[1]);
-									if ($args === 'even') {
-										$args = [2, 'n', 0];
-									} elseif ($args === 'odd') {
-										$args = [2, 'n', 1];
-									} elseif (is_numeric($args)) {
-										$args = [intval($args), '', 0];
-									} else {
-										$args = explode('n', $args, 2) + [1 => 0];
-										$args = [$args[0] === '-' ? '-': intval($args[0]), 'n', intval($args[1])];
-									}
-									$single[] = [':', $buffer, $args];
+							if (!empty($buffer[1]) && preg_match('/^\s*(even|odd|[0-9+\-]+(?:n[0-9+\-]+)?)\s*$/i', $buffer[1], $matches)) {
+								$args = strtolower($matches[1]);
+								if ($args === 'even') {
+									$args = [2, 'n', 0];
+								} elseif ($args === 'odd') {
+									$args = [2, 'n', 1];
+								} elseif (is_numeric($args)) {
+									$args = [intval($args), '', 0];
+								} else {
+									$args = explode('n', $args, 2) + [1 => 0];
+									$args = [$args[0] === '-' ? '-': intval($args[0]), 'n', intval($args[1])];
 								}
-								$this->buffer = '';
-								$char = $this->search(self::SEARCH);
+								$single[] = [':', $buffer[0], $args];
 							}
 							break;
 						case 'lang':
-							if ($char === '(') {
-								$this->search(')');
-								if (preg_match('/^\s*([a-z\-]{2,10})\s*$/i', $this->buffer, $matches)) {
-									$single[] = [':', $buffer, $matches[1]];
-								}
-								$this->buffer = '';
-								$char = $this->search(self::SEARCH);
+							if (!empty($buffer[1]) && preg_match('/^\s*([a-z\-]{2,10})\s*$/i', $buffer[1], $matches)) {
+								$single[] = [':', $buffer[0], $matches[1]];
 							}
 							break;
 						case 'has':
 						case 'not':
 						case 'matches':
 							// 没匹配到 开始括号
-							if ($char === '(') {
+							if (!empty($buffer[1])) {
 								$selectors2 = new Selectors;
-								$stack[] = $buffer;
-								$this->prepare($selectors2);
+								$stack[] = $buffer[0];
+								$this->process($buffer[1], $selectors2);
 								array_pop($stack);
-								if ((!$stack || (reset($stack) !== 'matches' && $buffer !== 'matches')) && $selectors2->count()) {
-									$single[] = [':', $buffer, $selectors2];
+								if ((!$stack || (reset($stack) !== 'matches' && $buffer[0] !== 'matches')) && $selectors2->count()) {
+									$single[] = [':', $buffer[0], $selectors2];
 								}
-								$char = $this->search(self::SEARCH);
 							}
 							break;
-						default:
-							if ($char === '(') {
-								$this->search(')');
-								$this->buffer = '';
-								$char = $this->search(self::SEARCH);
-							}
 					}
 					break;
 				default:

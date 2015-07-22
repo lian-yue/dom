@@ -8,7 +8,7 @@
 /*	Author: Moon
 /*
 /*	Created: UTC 2015-06-29 11:29:12
-/*	Updated: UTC 2015-07-19 14:46:56
+/*	Updated: UTC 2015-07-20 09:59:57
 /*
 /* ************************************************************************** */
 namespace Loli\DOM\Filter;
@@ -410,15 +410,20 @@ class Style{
 	];
 
 
-	public function __construct() {
+	// 允许匹配的 前缀
+	public $prefix = 'content-';
 
+	public function __construct($prefix = NULL) {
+		if ($prefix !== NULL) {
+			$this->prefix = $prefix;
+		}
 	}
 
 	public function __invoke() {
 		return call_user_func_array([$this, 'filter'], func_get_args());
 	}
 
-	public function filter($name, $value) {
+	public function filrer($name, $value) {
 		// 变量的
 		if (substr($name, 0, 2) === '--') {
 			return substr($name, 0, 10) === '--content-';

@@ -8,7 +8,7 @@
 /*	Author: Moon
 /*
 /*	Created: UTC 2015-06-19 09:46:35
-/*	Updated: UTC 2015-07-15 10:37:54
+/*	Updated: UTC 2015-07-21 09:47:27
 /*
 /* ************************************************************************** */
 namespace Loli\DOM\CSS;
@@ -83,7 +83,6 @@ class Document extends Base implements IteratorAggregate, Countable{
 			}
 		}
 	}
-
 
 	public function getIterator() {
 		return new ArrayIterator($this->conditions);

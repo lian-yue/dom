@@ -8,7 +8,7 @@
 /*	Author: Moon
 /*
 /*	Created: UTC 2015-06-18 07:58:07
-/*	Updated: UTC 2015-07-19 14:39:03
+/*	Updated: UTC 2015-07-21 10:19:41
 /*
 /* ************************************************************************** */
 namespace Loli\DOM\CSS;
@@ -361,7 +361,7 @@ class Rule extends Base implements ArrayAccess, IteratorAggregate, Countable{
 				break;
 			case self::PROPERTY_RULE:
 				// 属性
-				$result = $this->value && ($this->value = self::value($this->value)) && ($this->name = self::name($this->name)) ? $this->privatePrefix . $this->name .':' .($this->format ? ' ' : ''). $this->value . ($this->important ? ' !important': '') . ';' : '';
+				$result = ($this->value = self::value($this->value)) !== false && ($this->name = self::name($this->name)) ? $this->privatePrefix . $this->name .':' .($this->format ? ' ' : ''). $this->value . ($this->important ? ' !important': '') . ';' : '';
 				break;
 			case self::STYLE_RULE:
 				// style 样式表
@@ -556,6 +556,7 @@ class Rule extends Base implements ArrayAccess, IteratorAggregate, Countable{
 			return;
 		}
 
+
 		while (($char = $this->search('@;{}', $rule)) !== false) {
 			switch ($char) {
 				case ';':
@@ -573,7 +574,6 @@ class Rule extends Base implements ArrayAccess, IteratorAggregate, Countable{
 				case '{':
 					// 直接元素绑定
 					$rule->insertRule($rule2 = new Rule($this->buffer, self::STYLE_RULE));
-
 					// 解析属性
 					$this->_propertys($rule2);
 					break;
@@ -586,6 +586,7 @@ class Rule extends Base implements ArrayAccess, IteratorAggregate, Countable{
 
 					// 读下一个
 					$char = $this->search(" \t\n\r\0\x0B{}:;");
+
 					switch ($char) {
 						case ';':
 						case '}':
@@ -705,7 +706,7 @@ class Rule extends Base implements ArrayAccess, IteratorAggregate, Countable{
 								case 'supports':
 								case 'document':
 									// meta supports document 规则
-									$types = ['media' => self::MEDIA_RULE, 'supports' => self::SUPPORTS_RULE, 'document' => self::DOCUMENT_RULE];
+									static $types = ['media' => self::MEDIA_RULE, 'supports' => self::SUPPORTS_RULE, 'document' => self::DOCUMENT_RULE];
 									$char !== '{' && $this->search('{', $rule);
 									$rule->insertRule($rule2 = new Rule($this->buffer,  $types[$name]));
 									$rule2->privatePrefix = $privatePrefix;

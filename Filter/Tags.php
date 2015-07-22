@@ -8,11 +8,13 @@
 /*	Author: Moon
 /*
 /*	Created: UTC 2015-06-01 14:00:25
-/*	Updated: UTC 2015-07-19 15:05:06
+/*	Updated: UTC 2015-07-22 05:35:59
 /*
 /* ************************************************************************** */
 namespace Loli\DOM\Filter;
+use Loli\DOM\Node, Loli\DOM\CSS\Rule;
 class Tags{
+
 	// 所有允许的标签
 	protected $tags = [
 		'a' => true, 'abbr' => true, 'acronym' => true, 'address' => true, 'applet' => true, 'area' => true, 'article' => true, 'aside' => true, 'audio' => true,
@@ -39,7 +41,7 @@ class Tags{
 		'xmp' => true,
 
 
-		'base' => NULL, 'html' => NULL, 'meta' => NULL, 'link' => NULL, 'script' => NULL, 'style' => NULL, 'head' => NULL, 'body' => NULL, 'title' => NULL, 'noframes' => NULL, 'noscript' => NULL, 'frameset' => NULL, 'frame' => NULL, 'iframe' => NULL, 'applet' => NULL, 'polygon' => NULL, 'svg' => NULL, 'dialog' => NULL,
+		'base' => NULL, 'html' => NULL, 'meta' => NULL, 'link' => NULL, 'script' => NULL, 'head' => NULL, 'body' => NULL, 'title' => NULL, 'noframes' => NULL, 'noscript' => NULL, 'frameset' => NULL, 'frame' => NULL, 'iframe' => NULL, 'applet' => NULL, 'polygon' => NULL, 'svg' => NULL, 'dialog' => NULL,
 		'command' => NULL,
 	];
 
@@ -146,6 +148,7 @@ class Tags{
 		'h5' => true,
 		'h6' => true,
 		'p' => true,
+		'dd' => true,
 		'dt' => true,
 	];
 
@@ -155,6 +158,8 @@ class Tags{
 	// 不允许嵌套 自己的 元素
 	protected $notNestedSelfTags = [
 		'a' => true,
+		'dd' => true,
+		'dt' => true,
 		'button' => true,
 		'option' => true,
 		'optgroup' => true,
@@ -209,12 +214,10 @@ class Tags{
 
 
 
-
 	// 当前标签 不允许的子级 (单层次)
 	protected $tagsSinglesLevel = [
 		'li' => ['li'],
 		'tr' => ['tr'],
-		'dd' => ['dd'],
 	];
 
 
@@ -231,8 +234,13 @@ class Tags{
 	// style 方法
 	protected $style;
 
+	protected $prefix = 'content-';
+
 	public function __construct(Style $style = NULL) {
-		$this->style = $style;
+		if ($style) {
+			$this->style = $style;
+			$this->prefix =& $style->prefix;
+		}
 	}
 
 	public function __invoke() {
@@ -520,7 +528,12 @@ class Tags{
 				$childNode->parentNode->removeChild($childNode);
 				continue;
 			}
-			$this->styleRule(new Rule($childNode->textContent));
+			$rule = new Rule($childNode->textContent);
+			$this->styleRule($rule);
+			$childNode->textContent = (string) $rule->format(true);
+			if (!$childNode->attributes['type']) {
+				$childNode->attributes['type'] = 'text/css';
+			}
 		}
 	}
 
@@ -529,34 +542,80 @@ class Tags{
 		foreach ($rules->cssRules as $rule) {
 			switch ($rule->type) {
 				case Rule::STYLE_RULE:
-					// 样式表过滤 保留 content- 开头的规则
-					foreach ($this->selectorText->toArray() as $selector) {
-						$values = reset($selector);
-						if (!($values = reset($selector)) || !($value = reset($values)) || ($value[0] !== '#' && $value[0] !== '.') || substr($value[1], 0, 8) !== 'content-') {
-							$value->parentRule->deleteRule($value);
+					// 样式表过滤
+
+					if (!$rule->selectorText->count()) {
+						$rules->deleteRule($rule);
+						break;
+					}
+
+					if ($this->prefix) {
+						foreach ($rule->selectorText->toArray() as $selector) {
+							$value = $selector[0][0];
+							if (!in_array($value[0], ['#', '.']) || substr($value[1], 0, strlen($this->prefix)) !== $this->prefix) {
+								$rules->deleteRule($rule);
+								break 2;
+							}
+						}
+					}
+
+					foreach ($rule->cssRules as $value) {
+						switch ($value->type) {
+							case Rule::PROPERTY_RULE:
+								if (!$this->style->filrer($value->name, $value->value)) {
+									$rule->deleteRule($value);
+								}
+								break;
+							case Rule::COMMENT_RULE:
+								// 保留注释
+								break;
+							default:
+								$rule->deleteRule($value);
 						}
 					}
 					break;
 				case Rule::KEYFRAMES_RULE:
-					// 样式表过滤 保留 content- 开头的动画名
-					if (substr($rule->name, 0, 8) !== 'content-') {
-						$rule->parentRule->deleteRule($rule);
+					// 动画名过滤
+
+					if ($this->prefix && substr($rule->name, 0, strlen($this->prefix)) !== $this->prefix) {
+						$rules->deleteRule($rule);
+						break;
 					}
-					break;
-				case Rule::PROPERTY_RULE:
-					if (!$this->style->filrer($rule->name, $rule->value)) {
-						$rule->parentRule->deleteRule($rule);
+					foreach ($rule->cssRules as $value) {
+						switch ($value->type) {
+							case Rule::KEYFRAME_RULE:
+								foreach ($value->cssRules as $value2) {
+									switch ($value2->type) {
+										case Rule::PROPERTY_RULE:
+											if (!$this->style->filrer($value2->name, $value2->value)) {
+												$value->deleteRule($value2);
+											}
+											break;
+										case Rule::COMMENT_RULE:
+											// 保留注释
+											break;
+										default:
+											$value->deleteRule($value2);
+									}
+								}
+								break;
+							case Rule::COMMENT_RULE:
+								// 保留注释
+								break;
+							default:
+								$rule->deleteRule($value);
+						}
 					}
-					// 过滤属性名
 					break;
 				case Rule::MEDIA_RULE:
-				case Rule::KEYFRAME_RULE:
 				case Rule::SUPPORTS_RULE:
+					$this->styleRule($rule);
+					break;
 				case Rule::COMMENT_RULE:
-					// 保留注释什么的
+					// 保留注释
 					break;
 				default:
-					$rule->parentRule->deleteRule($rule);
+					$rules->deleteRule($rule);
 			}
 		}
 	}

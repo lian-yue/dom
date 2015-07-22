@@ -8,19 +8,35 @@
 /*	Author: Moon
 /*
 /*	Created: UTC 2015-06-19 10:02:30
-/*	Updated: UTC 2015-07-19 13:59:58
+/*	Updated: UTC 2015-07-21 06:38:41
 /*
 /* ************************************************************************** */
 namespace Loli\DOM\CSS;
 abstract class Base{
 
-	protected function process($value) {
-		$this->string = trim($value);
-		$this->length = strlen($this->string);
-		$this->offset = 0;
-		$this->buffer = '';
-		$this->prepare($this);
-		unset($this->string, $this->length, $this->offset, $this->buffer);
+	protected function process($string, $prepare = NULL) {
+		static $stack = [];
+		$string = trim($string);
+		$array = [$string, strlen($string), 0, ''];
+		if (!isset($this->string)) {
+			$this->buffer = $this->offset = $this->length = $this->string = NULL;
+		}
+		$this->string = &$array[0];
+		$this->length = &$array[1];
+		$this->offset = &$array[2];
+		$this->buffer = &$array[3];
+		$stack[] = $array;
+		$this->prepare($prepare ? $prepare : $this);
+		array_pop($stack);
+		if ($stack) {
+			$array = end($stack);
+			$this->string = &$array[0];
+			$this->length = &$array[1];
+			$this->offset = &$array[2];
+			$this->buffer = &$array[3];
+		} else {
+			unset($this->string, $this->length, $this->offset, $this->buffer);
+		}
 	}
 
 	/**
@@ -51,10 +67,17 @@ abstract class Base{
 	}
 
 	protected static function value($value) {
+		if ($value === false || $value === NULL) {
+			return false;
+		}
 		$value = trim($value, " \t\n\r\0\x0B;");
 		if (strpos($value, '&#') !== false) {
 			return false;
 		}
+		if ($value === '') {
+			return false;
+		}
+
 		if (!$value) {
 			return $value;
 		}
@@ -253,7 +276,6 @@ abstract class Base{
 					} else {
 						$this->offset = $offset;
 					}
-					//die;
 					break;
 				case '(':
 					$this->buffer .= '(';
@@ -266,7 +288,9 @@ abstract class Base{
 					}
 					break;
 				default:
-					if ($brackets <= 0) {
+					if ($brackets > 0) {
+						$this->buffer .= $char;
+					} else {
 						return $char;
 					}
 			}
