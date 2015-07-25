@@ -72,4 +72,49 @@
 	// 不格式化的
 	echo $node;
 
+
+
+
+
+
+	
+	
+	
+	// 过滤数据演示
+
+	// 创建style 过滤 保留 属性 content 开头的前缀  #content-  .content- 开头的保留
+	$filterStyle = new DOM\Filter\Style('content-');
+	
+	// 创建标签过滤 传入了filterStyle就允许style 标签
+	$filterTags = new DOM\Filter\Tags($filterStyle);
+	
+	
+	// 创建属性过滤  传入了filterStyle就允许style 属性
+	$filterAttributes = new DOM\Filter\Attributes($filterStyle);
+	
+	
+	/// 解析 dom
+	$node = new DOM\Node($contents);
+	
+	// 过滤标签
+	$filterTags($node);
+	
+	// 过滤属性
+	$filterAttributes($node);
+	
+	// 格式化并输出
+	echo $node->format(true);
+
+
+
+
+
+
+
+
+
+
+
+
+
 	?>
